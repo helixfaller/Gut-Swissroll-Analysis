@@ -3,17 +3,21 @@
 
 # In[7]:
 
-def box_plot(columns, genotype, data, test="Mann-Whitney",
+def boxplot(columns, genotype, data, test="Mann-Whitney",
              hue="Sacrifice Age (month)",hue_split=0, loc="inside",
-            genotype_column="Genotype", palette="Set2_r"):
+            genotype_column="Genotype", palette="Set2_r",
+            comparisons_correction=None):
     
+    ## import necessary modules
     import pandas as pd
     import numpy as np
     from matplotlib import pyplot as plt
     import seaborn as sns
     from statannot import add_stat_annotation
     from itertools import combinations
-    plt.rcParams["figure.figsize"] = 12.0, 9.0
+    
+    ## set sizes
+    plt.rcParams["figure.figsize"] = 9.0, 6.0
     plt.rcParams["xtick.labelsize"] = 15
     plt.rcParams["ytick.labelsize"] = 15
     
@@ -51,11 +55,17 @@ def box_plot(columns, genotype, data, test="Mann-Whitney",
         pass
     box_pairs = list(combinations(liste_box_pairs, 2))
 
+    ## get nice boxplots
     ax = sns.boxplot(data=data, x=genotype_column, y=columns, hue=hue,
                          linewidth=4, palette=palette, fliersize=6)
+    
+    ## add statistical analysis
     add_stat_annotation(ax, data=data,x=genotype_column, y=columns,
-                            hue=hue, box_pairs=box_pairs, text_format="star",
-                            test=test, loc=loc, verbose=5)
+                        hue=hue, box_pairs=box_pairs, text_format="star",
+                        test=test, loc=loc, verbose=5,
+                        comparisons_correction=comparisons_correction)
+    
+    ## set ylabel and legend
     ax.set(xlabel=None)
     ax.set_ylabel(columns, fontsize=15)
     # if max(self.data[self.columns].tolist()) > 500:
@@ -163,8 +173,8 @@ def weightloss(data, time):
         else:
             pass
 
-    ## drop all mice, where percentage weight loss is below 10%, since mice become euthanized
-    ## after a weight loss of 20%
+    ## drop all mice, where percentage weight loss is below 10%,
+    ## since mice become euthanized after a weight loss of 20%
     for mouse in df2.index.tolist():
         if df2.loc[mouse]["percentage weight loss"] < 0.1:
             df2 = df2.drop(index=mouse)
@@ -175,7 +185,8 @@ def weightloss(data, time):
     ## get nice scatterplot
     ## hue is a grouping variable that will produce points with different colors
     ## s represents the radius of the point
-    ax = sns.scatterplot(x="max weight", y="percentage weight loss", hue=df2.index, data=df2, s=100)
+    ax = sns.scatterplot(x="max weight", y="percentage weight loss", hue=df2.index,
+                         data=df2, s=100)
     ## set y min to 0.10 == 10%; data <10% is irrelevant
     ax.set_ylim(ymin=0.10)
     ## set y label
@@ -185,4 +196,84 @@ def weightloss(data, time):
     ## add legend
     ax.legend(title_fontsize="x-large", fontsize="x-large",
               loc='center right', bbox_to_anchor=(1.3, 0.5), ncol=1)
+    return plt.figure()
+
+
+def swarmplot (data, column, column_gender, hue, box_pairs_extra,
+               test="Mann-Whitney"):    
+    
+    ## import necessary modules
+    import seaborn as sns
+    from matplotlib import pyplot as plt
+    from statannot import add_stat_annotation
+    from itertools import combinations
+    import pandas as pd
+
+    ## get boxpairs
+    liste_box_pairs = []
+
+    ## get genotype variables
+    genotype = []
+    for variable in data[hue].tolist():
+        if variable not in genotype:
+            genotype.append(variable) 
+
+    ## make boxpair with different genotype combinations
+    for i in range(len(genotype)):
+        variable = (genotype[i])
+        liste_box_pairs.append(variable)
+
+    box_pairs = list(combinations(liste_box_pairs, 2))
+
+    ## get gender
+    genders = []
+    for variable in data[column_gender].tolist():
+        if variable not in genders:
+             genders.append(variable) 
+
+    ## make dict for gender_dataframes
+    dic = {}
+    in_dic = []
+    for gender in genders:
+        dic["data_" + str(gender)] = data[data[column_gender] == gender]
+        in_dic.append("data_" + str(gender))
+
+    ## make subplots
+    fig, axes = plt.subplots(1, len(genders) + 1)
+
+    ## get swarmplot of total values
+    ax1 = sns.swarmplot(x=hue, y=column, data=data, linewidth=3,
+                        palette="Set2_r", size=7, ax=axes[0])
+    add_stat_annotation(ax1, data=data, x=hue, y=column, box_pairs=box_pairs,
+                        test=test, text_format='star', loc='inside', verbose=2,
+                        comparisons_correction=None)
+
+    ## get sublots for variable genders
+    dic2 = {}
+    in_dic2 = []
+    for i in range(1 + 1, len(genders) + 1):
+        dic2["ax" + str(i)] = sns.swarmplot(x=hue, y=column, data=dic[in_dic[i-2]],
+                                            linewidth=3, palette="Set2_r", size=7,
+                                            ax=axes[i-1])
+        in_dic2.append("ax" + str(i))
+
+    for i in range(len(dic2)):
+        add_stat_annotation(dic2[in_dic2[i]], data=dic[in_dic[i]], x=hue, y=column,
+                            box_pairs=box_pairs, test=test, text_format='star',
+                            loc='inside', verbose=2, comparisons_correction=None)
+
+    ## get last subplot
+    ax3 = sns.swarmplot(x=hue, y=column, data=dic[in_dic[1]], linewidth=3,
+                        palette="Set2_r", size=7, ax=axes[2])
+    add_stat_annotation(ax3, data=dic[in_dic[1]], x=hue, y=column,
+                        box_pairs=box_pairs_extra,test=test, text_format='star',
+                        loc='inside', verbose=2, comparisons_correction=None)    
+
+    ## set plots
+    plt.rcParams["figure.figsize"] = (13.0/3 * (len(genders) + 1), 6.0)
+
+    axes[0].set_title("total")
+    for i, gender in enumerate(genders):
+        axes[i+1].set_title(gender)
+    
     return plt.figure()
